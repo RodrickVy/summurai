@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Summurai",
+  "description": "An AI summerize built to work with BCIT learning, summerizign documents, pdfs and slides right on the page.",
+  "version": "1.0.0",
+  "permissions": ["tabs", "activeTab", "storage", "scripting", "offscreen"],
+  "host_permissions": [
+    "https://learn.bcit.ca/*",
+    "https://api.openai.com/*",
+    "http://localhost:3000/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "index.js"
+  },
+  "action": {
+    "default_title": "Summurai",
+    "default_icon": "logo.png",
+    "default_popup": "summurai.html"
+  }
+}

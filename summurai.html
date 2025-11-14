@@ -1,0 +1,150 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Summarize Settings</title>
+
+    <style>
+        body {
+            padding: 30px;
+            width: 500px;
+        }
+        .settings-container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .setting-option {
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+<div class="settings-container">
+    <h1 class="text-center">Summarize Settings</h1>
+
+    <!-- Summarize Button Position -->
+    <div class="setting-option">
+        <h5>Summarize Button Position</h5>
+        <div class="form-check">
+            <input
+                    type="radio"
+                    class="form-check-input"
+                    id="btnPositionTopLeft"
+                    name="btnPosition"
+                    value="topLeft"
+            />
+            <label class="form-check-label" for="btnPositionTopLeft"
+            >Top Left</label
+            >
+        </div>
+        <div class="form-check">
+            <input
+                    type="radio"
+                    class="form-check-input"
+                    id="btnPositionTopRight"
+                    name="btnPosition"
+                    value="topRight"
+            />
+            <label class="form-check-label" for="btnPositionTopRight"
+            >Top Right</label
+            >
+        </div>
+        <div class="form-check">
+            <input
+                    type="radio"
+                    class="form-check-input"
+                    id="btnPositionBottomLeft"
+                    name="btnPosition"
+                    value="bottomLeft"
+            />
+            <label class="form-check-label" for="btnPositionBottomLeft"
+            >Bottom Left</label
+            >
+        </div>
+        <div class="form-check">
+            <input
+                    type="radio"
+                    class="form-check-input"
+                    id="btnPositionBottomRight"
+                    name="btnPosition"
+                    value="bottomRight"
+            />
+            <label class="form-check-label" for="btnPositionBottomRight"
+            >Bottom Right</label
+            >
+        </div>
+    </div>
+
+    <!-- Summarize Popup Position -->
+    <div class="setting-option">
+        <h5>Summarize Popup Position</h5>
+        <div class="form-check">
+            <input
+                    type="radio"
+                    class="form-check-input"
+                    id="popUpPositionLeft"
+                    name="popUpPosition"
+                    value="left"
+            />
+            <label class="form-check-label" for="popUpPositionLeft">Left</label>
+        </div>
+        <div class="form-check">
+            <input
+                    type="radio"
+                    class="form-check-input"
+                    id="popUpPositionRight"
+                    name="popUpPosition"
+                    value="right"
+            />
+            <label class="form-check-label" for="popUpPositionRight">Right</label>
+        </div>
+    </div>
+
+    <div class="text-center">
+        <button id="saveSettings" class="btn btn-success">Save Settings</button>
+    </div>
+</div>
+<script>
+    // ====== Load previous settings from localStorage ======
+    window.addEventListener("load", function () {
+        const btnPosition = localStorage.getItem("ehub_sum_btn_position");
+        const popUpPosition = localStorage.getItem("ehub_sum_pop_up_position");
+
+        if (btnPosition) {
+            document.querySelector(
+                `input[name="btnPosition"][value="${btnPosition}"]`
+            ).checked = true;
+        }
+        if (popUpPosition) {
+            document.querySelector(
+                `input[name="popUpPosition"][value="${popUpPosition}"]`
+            ).checked = true;
+        }
+    });
+
+    // ====== Save the selected settings to localStorage ======
+    document
+        .getElementById("saveSettings")
+        .addEventListener("click", function () {
+            const btnPosition = document.querySelector(
+                'input[name="btnPosition"]:checked'
+            );
+            const popUpPosition = document.querySelector(
+                'input[name="popUpPosition"]:checked'
+            );
+
+            if (btnPosition && popUpPosition) {
+                localStorage.setItem("ehub_sum_btn_position", btnPosition.value);
+                localStorage.setItem(
+                    "ehub_sum_pop_up_position",
+                    popUpPosition.value
+                );
+
+                alert("Settings saved!");
+            } else {
+                alert("Please select both a button and popup position.");
+            }
+        });
+</script>
+</body>
+</html>
