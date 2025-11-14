@@ -313,6 +313,7 @@ function initializeContentScript(downloadUrl) {
     function getPopupHTML() {
         return `
             <div class="d-flex justify-content-between align-items-center border-bottom p-2 bg-light">
+            <img src="https://summurai.onrender.com/logo.png" width="200px" alt="">
                 <strong>Summary</strong>
                 <div class="d-flex gap-2">
                     <button id="reloadBtn" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-clockwise"></i></button>
