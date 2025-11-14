@@ -10,19 +10,19 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const fileUpload = require("express-fileupload");
 const pdfParse = require("pdf-parse");
 const mammoth = require("mammoth"); // For Word documents (.docx)
+const path = require("path");
 
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.GEMINI_API_KEY;
 
 // Safety check
 if (!API_KEY) {
-    console.error("❌ ERROR:Missing GEMINI_API_KEY in environment variables!");
+    console.error("❌ ERROR: Missing GEMINI_API_KEY in environment variables!");
     process.exit(1);
 }
 
 console.log("✅ Gemini API key loaded.");
 
-// Gemini setup
 const genAI = new GoogleGenerativeAI(API_KEY);
 const generationConfig = { temperature: 0.9 };
 
@@ -32,6 +32,15 @@ const model = genAI.getGenerativeModel({
 });
 
 const app = express();
+
+// ===== Static file hosting =====
+// Serve files from the "public" folder (logo.png must be inside /public)
+app.use(express.static(path.join(__dirname, "public")));
+
+// Example:
+// http://localhost:3000/logo.png
+// chrome-extension can load it normally.
+
 
 // ===== Middleware =====
 app.use(express.json({ limit: "200mb" }));
@@ -80,7 +89,7 @@ ADDITIONAL RULES
 • Do NOT use headings, divs, classes, or markdown.
 `;
 
-// ===== Helpers =====
+// ====== Helpers ======
 async function summarizeTextWithAPI(text) {
     if (!text || text.trim() === "") return "";
 
@@ -100,19 +109,17 @@ async function extractTextFromFile(file) {
     }
 
     if (
-        mime ===
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
         mime === "application/msword"
     ) {
         const { value } = await mammoth.extractRawText({ buffer: file.data });
         return value;
     }
 
-    // Fallback: treat as UTF-8 text
     return file.data.toString("utf-8");
 }
 
-// ====== Endpoints ======
+// ====== API Endpoints ======
 
 // 1️⃣ Upload file → extract → summarize
 app.post("/buffer-to-text", async (req, res) => {
@@ -134,7 +141,7 @@ app.post("/buffer-to-text", async (req, res) => {
     }
 });
 
-// 2️⃣ Summarize plain text directly
+// 2️⃣ Summarize raw text
 app.post("/summarize-text", async (req, res) => {
     try {
         const { text } = req.body;
@@ -151,7 +158,8 @@ app.post("/summarize-text", async (req, res) => {
     }
 });
 
-// ===== Start server =====
+// ===== Start Server =====
 app.listen(PORT, () => {
     console.log(`🚀 Server running at http://localhost:${PORT}`);
+    console.log(`🌐 Static files served from /public`);
 });

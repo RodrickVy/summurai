@@ -156,7 +156,7 @@ function initializeContentScript(downloadUrl) {
             if (contentType.startsWith("text/")) {
                 // It's a plain text file → send to /summarize-text
                 text = await response.text();
-                const apiResponse = await fetch("http://localhost:3000/summarize-text", {
+                const apiResponse = await fetch("https://summurai.onrender.com/summarize-text", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ text }),
