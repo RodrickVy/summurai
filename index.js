@@ -37,11 +37,11 @@ function extractIdsFromUrl(url) {
         const resourceId = pathSegments[5];
 
         if (!isValidId(courseId) || !isValidId(resourceId)) {
-            console.warn("Invalid IDs extracted:", { courseId, resourceId });
+            console.warn("Invalid IDs extracted:", {courseId, resourceId});
             return null;
         }
 
-        return { courseId, resourceId };
+        return {courseId, resourceId};
     } catch (error) {
         console.error("Error parsing URL:", error);
         return null;
@@ -61,7 +61,7 @@ function buildDownloadUrl(courseId, resourceId) {
 async function injectContentScript(tabId, downloadUrl) {
     try {
         await chrome.scripting.executeScript({
-            target: { tabId },
+            target: {tabId},
             func: initializeContentScript,
             args: [downloadUrl],
         });
@@ -134,61 +134,97 @@ function initializeContentScript(downloadUrl) {
             isLoading: false,
         },
         position: {
-            button: { bottom: "20px", right: "20px" },
-            popup: { side: "right" },
+            button: {bottom: "20px", right: "20px"},
+            popup: {side: "right"},
         },
     };
 
     // ==========================
     // FETCH + PDF PARSE LOGIC
     // ==========================
-    async function fetchContent(url) {
+    async function fetchContent(downloadUrl) {
         try {
             setLoading(true);
             state.popup.hasSummarized = true;
 
-            const response = await fetch(url);
-            const contentType = response.headers.get("content-type") || "";
+            // --- STEP 1: Extract IDs from the URL so we know which DOM button to check ---
+            const ids = extractIdsFromUrl(window.location.href);
+            const domButtonId = `d2l_content_${ids.courseId}_${ids.resourceId}`;
+            const downloadButton = document.getElementById(domButtonId);
 
             let text = "";
             let summary = "";
 
-            if (contentType.startsWith("text/")) {
-                // It's a plain text file → send to /summarize-text
-                text = await response.text();
-                const apiResponse = await fetch("https://summurai.onrender.com/summarize-text", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ text }),
-                });
-                const result = await apiResponse.json();
-                summary = result.summary || "No summary returned.";
-            } else {
-                // Binary file (PDF, DOC, DOCX, etc.) → send to /buffer-to-text
-                const blob = await response.blob();
-                text = await blob.text().catch(() => ""); // fallback if can't read text
-                const file = new File([blob], "document", { type: blob.type || "application/octet-stream" });
-                const formData = new FormData();
-                formData.append("file", file);
+            // ===============================================================
+            // CASE A: Download button exists → treat as FILE (PDF/Word/etc.)
+            // ===============================================================
+            if (downloadButton) {
+                console.log("📄 File download button found → treating as FILE");
 
-                const apiResponse = await fetch("http://localhost:3000/buffer-to-text", {
-                    method: "POST",
-                    body: formData,
-                });
-                const result = await apiResponse.json();
-                summary = result.summary || "No summary returned.";
-                text = result.text || text;
+                const response = await fetch(downloadUrl);
+                const contentType = response.headers.get("content-type") || "";
+
+                if (contentType.startsWith("text/")) {
+                    // plain text
+                    text = await response.text();
+                    const apiResponse = await fetch("https://summurai.onrender.com/summarize-text", {
+                        method: "POST",
+                        headers: {"Content-Type": "application/json"},
+                        body: JSON.stringify({ text }),
+                    });
+                    const result = await apiResponse.json();
+                    summary = result.summary || "No summary returned.";
+                } else {
+                    // binary file → send to /buffer-to-text
+                    const blob = await response.blob();
+                    const file = new File([blob], "document", { type: blob.type || "application/octet-stream" });
+
+                    const formData = new FormData();
+                    formData.append("file", file);
+
+                    const apiResponse = await fetch("https://summurai.onrender.com/buffer-to-text", {
+                        method: "POST",
+                        body: formData,
+                    });
+
+                    const result = await apiResponse.json();
+                    text = result.text || "";
+                    summary = result.summary || "No summary returned.";
+                }
+
+                updateSummary(summary);
+                setLoading(false);
+                return { text, summary };
             }
+
+            // ===============================================================
+            // CASE B: No download button → treat as HTML PAGE
+            // ===============================================================
+            console.log("🌐 No download button found → treating as HTML PAGE");
+
+            const htmlText = document.body.innerText || document.body.textContent || "";
+
+            const apiResponse = await fetch("https://summurai.onrender.com/html-to-summary", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({ html: htmlText })
+            });
+
+            const result = await apiResponse.json();
+            summary = result.summary || "No summary returned.";
+            text = htmlText;
 
             updateSummary(summary);
             setLoading(false);
             return { text, summary };
+
         } catch (err) {
-            console.error("❌ Fetch error:", err);
+            console.error("❌ FetchContent error:", err);
             setLoading(false);
             return { text: "", summary: "" };
         }
     }
+
 
     function updateSummary(text) {
         const el = document.getElementById("summaryText");
@@ -295,7 +331,7 @@ function initializeContentScript(downloadUrl) {
             zIndex: "2000",
             top: "10px",
             height: "calc(100vh - 60px)",
-            width: "33vw",
+            width: "43vw",
             right: "10px",
         });
 
@@ -312,26 +348,80 @@ function initializeContentScript(downloadUrl) {
 
     function getPopupHTML() {
         return `
-            <div class="d-flex justify-content-between align-items-center border-bottom p-2 bg-light">
-            <img src="https://summurai.onrender.com/logo.png" width="200px" alt="">
-                <strong>Summary</strong>
+        <style>
+        .tooltip-container {
+          position: relative; /* Needed for positioning the tooltip text */
+          display: inline-block; /* Or block, depending on desired layout */
+        }
+        
+        .tooltip-text {
+          visibility: hidden; /* Hidden by default */
+          width: 120px; /* Adjust as needed */
+          background-color: #333;
+          color: #fff;
+          text-align: center;
+          border-radius: 6px;
+          padding: 5px 0;
+          position: absolute; /* Positioned relative to the container */
+          z-index: 1; /* Ensures it appears above other content */
+          top: 125%; /* Example: positioned above the container */
+          left: 50%;
+          margin-left: -60px; /* Half of the width to center it */
+          opacity: 0; /* Hidden with opacity for smooth transition */
+          transition: opacity 0.3s; /* Smooth fade-in effect */
+        }
+        
+        .tooltip-container:hover .tooltip-text {
+          visibility: visible; /* Visible on hover */
+          opacity: 1; /* Fade in on hover */
+        }
+        
+        /* Optional: Add an arrow to the tooltip */
+        .tooltip-text::after {
+          content: "";
+          position: absolute;
+          top: 100%; /* Position below the tooltip text */
+          left: 50%;
+          margin-left: -5px; /* Half of the arrow width */
+          border-width: 5px;
+          border-style: solid;
+          border-color: #333 transparent transparent transparent; /* Creates a downward-pointing arrow */
+        }
+        </style>
+        <section style="background: white; height: 100vh">
+            <div style="height: 10vh" class="d-flex justify-content-between align-items-center border-bottom p-2 bg-light">
+            <img src="https://summurai.onrender.com/logo.png" width="80px" alt="">
                 <div class="d-flex gap-2">
-                    <button id="reloadBtn" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-clockwise"></i></button>
-                    <button id="minimizeBtn" class="btn btn-sm btn-outline-secondary"><i class="bi bi-dash"></i></button>
+                    <div class="tooltip-container">
+                           <button id="reloadBtn" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-clockwise"></i></button>
+                        <span class="tooltip-text">Re-summarize</span>
+                    </div>
+                     <div class="tooltip-container">
+                        <button id="minimizeBtn" class="btn btn-sm btn-outline-secondary"><i class="bi bi-dash"></i></button>
+                        <span class="tooltip-text">Minimize popup</span>
+                    </div>
                 </div>
             </div>
-            <div id="popupContent" class="p-3" style="height: calc(100% - 90px); overflow-y: auto;">
-                <p id="summaryText">${state.popup.summaryText}</p>
+            <div id="popupContent" class="p-3" style="height: 80vh;overflow-y: scroll">
+                <div id="summaryText">${state.popup.summaryText}</div>   
             </div>
-            <div class="border-top p-2 text-end" style="position:absolute;bottom:0;width:100%;">
+            <div class="border-top p-2 text-end" style="height:90px;margin:0; background:white;width:100%;">
                 <button id="downloadBtn" class="btn btn-success"><i class="bi bi-download"></i> Download</button>
             </div>
+        </section>
+            
         `;
     }
 
     function attachPopupEventListeners() {
         document.getElementById("minimizeBtn")?.addEventListener("click", minimizePopup);
-        document.getElementById("reloadBtn")?.addEventListener("click", () => fetchContent(downloadUrl));
+        document.getElementById("reloadBtn")?.addEventListener("click", async () => {
+            console.log("Btn clicked!");
+            minimizePopup();
+            await fetchContent(downloadUrl)
+            expandPopup();
+
+        });
         document.getElementById("downloadBtn")?.addEventListener("click", downloadSummary);
     }
 
@@ -373,9 +463,9 @@ function initializeContentScript(downloadUrl) {
             <span class="miniSummarizeSpinner spinner-border spinner-border-sm" style="display:none;"></span>
             <span class="miniSummarizeLabel">Summarize</span>
         `;
-        btn.onclick = () => {
+        btn.onclick = async () => {
+            await fetchContent(downloadUrl);
             expandPopup();
-            fetchContent(downloadUrl);
         };
         return btn;
     }
@@ -400,7 +490,7 @@ function initializeContentScript(downloadUrl) {
     }
 
     function downloadSummary() {
-        const blob = new Blob([state.popup.summaryText], { type: "text/plain" });
+        const blob = new Blob([state.popup.summaryText], {type: "text/plain"});
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
         link.download = "summary.txt";

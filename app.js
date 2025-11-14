@@ -158,6 +158,46 @@ app.post("/summarize-text", async (req, res) => {
     }
 });
 
+// 3️⃣ Summarize HTML (extract text from HTML string)
+app.post("/html-to-summary", async (req, res) => {
+    try {
+        const { html } = req.body;
+
+        if (!html || typeof html !== "string") {
+            return res.status(400).json({
+                error: "Missing 'html' field in JSON body."
+            });
+        }
+
+        // ---- Strip HTML → Text ----
+        const text = html
+            .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "") // remove script tags
+            .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")   // remove style tags
+            .replace(/<[^>]+>/g, " ")                            // remove all remaining tags
+            .replace(/\s+/g, " ")                                // collapse whitespace
+            .trim();
+
+        if (!text) {
+            return res.status(400).json({
+                error: "HTML contained no readable text."
+            });
+        }
+
+        // ---- Summarize using Gemini ----
+        const summary = await summarizeTextWithAPI(text);
+
+        res.json({
+            text,
+            summary
+        });
+    } catch (err) {
+        console.error("❌ /html-to-summary failed:", err);
+        res.status(500).json({
+            error: "Failed to extract or summarize HTML: " + err.message
+        });
+    }
+});
+
 // ===== Start Server =====
 app.listen(PORT, () => {
     console.log(`🚀 Server running at http://localhost:${PORT}`);
